@@ -61,7 +61,7 @@ let db=null, currentTab="dashboard", productsRows=[], mediaRows=[], ordersRows=[
 let editingProductId="", recoveryReady=false, recoveryRequested=location.hash.includes("type=recovery") || new URLSearchParams(location.search).has("code");
 
 const tabs=[
-["dashboard","الرئيسية"],["products","المنتجات"],["orders","الطلبات"],["media","مكتبة الصور"],["categories","الفئات"],
+["dashboard","الرئيسية"],["products","المنتجات"],["orders","الطلبات"],["media","مكتبة الصور"],["sliders","السلايدر"],["feedback","آراء الزبائن"],["categories","الفئات"],
 ["content","محتوى الموقع"],["delivery","التوصيل"],["coupons","الكوبونات"],["customers","الزبائن"],["settings","الإعدادات"]
 ];
 
@@ -158,6 +158,8 @@ function renderNav(){
 function show(tab){currentTab=tab;renderNav();const t=tabs.find(x=>x[0]===tab);$("title").textContent=t?t[1]:"";$("topActions").innerHTML="";
  if(tab==="products")$("topActions").innerHTML='<button class="btn gold" onclick="productForm()">+ منتج جديد</button>';
  if(tab==="media")$("topActions").innerHTML='<button class="btn gold" onclick="mediaForm()">+ إضافة وسائط</button>';
+ if(tab==="sliders")$("topActions").innerHTML='<button class="btn gold" onclick="sliderForm()">+ سلايدر جديد</button>';
+ if(tab==="feedback")$("topActions").innerHTML='<button class="btn gold" onclick="feedbackForm()">+ رأي جديد</button>';
  if(tab==="categories")$("topActions").innerHTML='<button class="btn gold" onclick="categoryForm()">+ فئة جديدة</button>';
  if(tab==="content")$("topActions").innerHTML='<button class="btn gold" onclick="sectionForm()">+ قسم جديد</button>';
  if(tab==="delivery")$("topActions").innerHTML='<button class="btn gold" onclick="deliveryForm()">+ منطقة جديدة</button>';
@@ -271,6 +273,59 @@ async function deleteMedia(id){if(!confirm("حذف الوسيط من المكت�
 async function copyMedia(url){try{await navigator.clipboard.writeText(url);toast("تم نسخ الرابط.")}catch(e){toast(url)}}
 async function chooseMediaForProduct(){const r=await db.from("media_library").select("*").eq("kind","image").eq("active",true).order("created_at",{ascending:false});const a=r.data||[];openModal('<div class="modalHead"><h2>اختيار من المكتبة</h2><button class="close" onclick="closeModal();productForm()">×</button></div><div class="mediaGrid">'+a.map(m=>'<button style="padding:0;border:1px solid var(--line);background:#fff;border-radius:12px;overflow:hidden" onclick="addMediaUrl(\''+esc(m.url)+'\')"><img src="'+esc(m.url)+'" style="width:100%;height:150px;object-fit:cover"><small>'+esc(m.name||"")+'</small></button>').join("")+'</div>')}
 function addMediaUrl(url){const ta=$("pimgs");if(ta){const vals=ta.value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(!vals.includes(url))vals.push(url);ta.value=vals.join("\n")}closeModal();toast("تمت إضافة الصورة للمنتج.")}
+
+async function sliders(){
+ const r=await db.from("sliders").select("*").order("sort_order").order("created_at",{ascending:false});
+ const a=r.data||[];
+ $("content").innerHTML='<div class="tablewrap"><table class="table"><thead><tr><th>الصورة</th><th>العنوان</th><th>النص</th><th>الرابط</th><th>الحالة</th><th>الترتيب</th><th></th></tr></thead><tbody>'+
+ a.map(x=>'<tr><td><img class="thumb" src="'+esc(x.image_url)+'"></td><td>'+esc(x.title||"")+'</td><td>'+esc(x.subtitle||"")+'</td><td>'+esc(x.link_url||"")+'</td><td>'+(x.active?'<span class="badge on">ظاهر</span>':'<span class="badge off">مخفي</span>')+'</td><td>'+x.sort_order+'</td><td><div class="rowBtns"><button class="btn ghost" onclick="sliderForm(\''+x.id+'\')">تعديل</button><button class="btn danger" onclick="toggleSlider(\''+x.id+'\')">'+(x.active?"إخفاء":"إظهار")+'</button></div></td></tr>').join("")+
+ '</tbody></table></div>';
+}
+function sliderForm(id){
+ const row=window.sliderRows?.find(x=>x.id===id);
+ const x=row||{image_url:"",title:"",subtitle:"",link_url:"",active:true,sort_order:0};
+ openModal('<div class="modalHead"><h2>السلايدر</h2><button class="close" onclick="closeModal()">×</button></div>'+
+ '<div class="field"><label>رابط الصورة</label><input id="slimg" value="'+esc(x.image_url)+'"></div>'+
+ '<div class="grid"><div class="field"><label>العنوان</label><input id="slt" value="'+esc(x.title||"")+'"></div><div class="field"><label>النص</label><input id="sls" value="'+esc(x.subtitle||"")+'"></div><div class="field"><label>الرابط</label><input id="sll" value="'+esc(x.link_url||"")+'"></div><div class="field"><label>الترتيب</label><input id="slo" type="number" value="'+x.sort_order+'"></div></div>'+
+ '<label><input id="sla" type="checkbox" '+(x.active?"checked":"")+'> ظاهر في الموقع</label>'+
+ '<div class="actions"><button class="btn gold" onclick="saveSlider(\''+(id||"")+'\')">حفظ</button></div>');
+}
+async function saveSlider(id){
+ const p={image_url:$("slimg").value.trim(),title:$("slt").value.trim()||null,subtitle:$("sls").value.trim()||null,link_url:$("sll").value.trim()||null,sort_order:Number($("slo").value||0),active:$("sla").checked};
+ if(!p.image_url)return toast("رابط الصورة مطلوب.");
+ const r=id?await db.from("sliders").update(p).eq("id",id):await db.from("sliders").insert(p);
+ if(r.error)return toast(r.error.message);
+ closeModal();toast(id?"تم تحديث السلايدر.":"تمت إضافة السلايدر.");sliders();
+}
+async function toggleSlider(id){
+ const r=await db.from("sliders").select("active").eq("id",id).single();if(r.error)return toast(r.error.message);
+ const u=await db.from("sliders").update({active:!r.data.active}).eq("id",id);if(u.error)return toast(u.error.message);sliders();
+}
+async function feedback(){
+ const r=await db.from("feedback").select("*").order("sort_order").order("created_at",{ascending:false});
+ const a=r.data||[];window.feedbackRows=a;
+ $("content").innerHTML='<div class="mediaGrid">'+a.map(x=>'<div class="mediaCard"><img src="'+esc(x.image_url)+'"><div class="mediaMeta"><b>'+esc(x.title||"رأي زبونة")+'</b><br><span class="muted">'+esc(x.alt_text||"")+'</span><br><span class="badge '+(x.active?"on":"off")+'">'+(x.active?"ظاهر":"مخفي")+'</span><div class="rowBtns" style="margin-top:7px"><button class="btn ghost" onclick="feedbackForm(\''+x.id+'\')">تعديل</button><button class="btn danger" onclick="toggleFeedback(\''+x.id+'\')">'+(x.active?"إخفاء":"إظهار")+'</button></div></div></div>').join("")||'<div class="card">لا توجد آراء.</div>';
+}
+function feedbackForm(id){
+ const row=window.feedbackRows?.find(x=>x.id===id);
+ const x=row||{image_url:"",title:"رأي زبونة",alt_text:"",active:true,sort_order:0};
+ openModal('<div class="modalHead"><h2>رأي زبونة</h2><button class="close" onclick="closeModal()">×</button></div>'+
+ '<div class="field"><label>رابط صورة المحادثة</label><input id="fbimg" value="'+esc(x.image_url)+'"></div>'+
+ '<div class="grid"><div class="field"><label>العنوان</label><input id="fbt" value="'+esc(x.title||"")+'"></div><div class="field"><label>النص البديل</label><input id="fba" value="'+esc(x.alt_text||"")+'"></div><div class="field"><label>الترتيب</label><input id="fbo" type="number" value="'+x.sort_order+'"></div></div>'+
+ '<label><input id="fbon" type="checkbox" '+(x.active?"checked":"")+'> ظاهر في الموقع</label>'+
+ '<div class="actions"><button class="btn gold" onclick="saveFeedback(\''+(id||"")+'\')">حفظ</button></div>');
+}
+async function saveFeedback(id){
+ const p={image_url:$("fbimg").value.trim(),title:$("fbt").value.trim()||null,alt_text:$("fba").value.trim()||null,sort_order:Number($("fbo").value||0),active:$("fbon").checked};
+ if(!p.image_url)return toast("رابط الصورة مطلوب.");
+ const r=id?await db.from("feedback").update(p).eq("id",id):await db.from("feedback").insert(p);
+ if(r.error)return toast(r.error.message);
+ closeModal();toast(id?"تم تحديث الرأي.":"تمت إضافة الرأي.");feedback();
+}
+async function toggleFeedback(id){
+ const r=await db.from("feedback").select("active").eq("id",id).single();if(r.error)return toast(r.error.message);
+ const u=await db.from("feedback").update({active:!r.data.active}).eq("id",id);if(u.error)return toast(u.error.message);feedback();
+}
 
 async function categories(){
  const r=await db.from("categories").select("*").order("sort_order");categoryRows=r.data||[];$("content").innerHTML='<div class="tablewrap"><table class="table"><thead><tr><th>الاسم</th><th>Slug</th><th>الحالة</th><th>الترتيب</th><th></th></tr></thead><tbody>'+categoryRows.map(c=>'<tr><td><b>'+esc(c.name_ar)+'</b><br><small>'+esc(c.name_en||"")+'</small></td><td>'+esc(c.slug)+'</td><td>'+(c.active?'<span class="badge on">ظاهرة</span>':'<span class="badge off">مخفية</span>')+'</td><td>'+c.sort_order+'</td><td><button class="btn ghost" onclick="categoryForm(\''+c.id+'\')">تعديل</button></td></tr>').join("")+'</tbody></table></div>'}
