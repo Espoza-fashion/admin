@@ -19,31 +19,11 @@ input,select,textarea{width:100%;border:1px solid var(--line);border-radius:12px
 </head>
 <body>
 <div id="login" class="login"><div class="loginBox">
-<div class="brand">ESPOZA</div><div style="text-align:center" class="muted">لوحة الإدارة الجديدة</div>
-<div class="field"><label>البريد الإلكتروني</label><input id="email" type="email" autocomplete="username"></div>
-<div class="field"><label>كلمة المرور</label><input id="pass" type="password" autocomplete="current-password"></div>
-<button class="btn primary" style="width:100%" onclick="login()">تسجيل الدخول</button>
-<button class="btn ghost" style="width:100%;margin-top:8px" onclick="showForgotPassword()">نسيت كلمة المرور؟</button>
+<div class="brand">ESPOZA</div><div style="text-align:center" class="muted">لوحة الإدارة</div>
+<p class="authHint muted">بدون كلمة مرور — أدخل بريد حساب الأدمن وسنرسل لك رابط دخول آمن. لا يتم إنشاء حساب جديد.</p>
+<div class="field"><label>البريد الإلكتروني</label><input id="email" type="email" autocomplete="email" inputmode="email" placeholder="بريد حساب الأدمن"></div>
+<button class="btn primary" style="width:100%" onclick="login()">إرسال رابط الدخول</button>
 <p id="loginMsg" class="muted"></p>
-</div></div>
-
-<div id="forgot" class="login hide"><div class="loginBox">
-<div class="brand">ESPOZA</div><div style="text-align:center" class="muted">استعادة كلمة المرور</div>
-<p class="authHint muted">اكتب بريد حساب الأدمن، وسنرسل لك رابطًا آمنًا من Supabase لتعيين كلمة مرور جديدة.</p>
-<div class="field"><label>البريد الإلكتروني</label><input id="resetEmail" type="email" autocomplete="email" placeholder="admin@example.com"></div>
-<button class="btn primary" style="width:100%" onclick="sendResetEmail()">إرسال رابط الاستعادة</button>
-<a href="#" class="authBack" onclick="showLogin();return false">← العودة لتسجيل الدخول</a>
-<p id="resetMsg" class="muted"></p>
-</div></div>
-
-<div id="recovery" class="login hide"><div class="loginBox">
-<div class="brand">ESPOZA</div><div style="text-align:center" class="muted">تعيين كلمة مرور جديدة</div>
-<p id="recoveryHint" class="authHint muted">أدخل كلمة المرور الجديدة لحساب الأدمن.</p>
-<div class="field"><label>كلمة المرور الجديدة</label><input id="newPass" type="password" autocomplete="new-password" oninput="passwordStrength()"></div>
-<div class="field"><label>تأكيد كلمة المرور</label><input id="newPass2" type="password" autocomplete="new-password"></div>
-<div id="passStrength" class="passwordMeter muted"></div>
-<button id="updatePassBtn" class="btn primary" style="width:100%" onclick="updatePassword()">حفظ كلمة المرور</button>
-<p id="recoveryMsg" class="muted"></p>
 </div></div>
 
 <div id="app" class="layout hide">
@@ -58,7 +38,6 @@ input,select,textarea{width:100%;border:1px solid var(--line);border-radius:12px
 const SUPABASE_URL="https://opqbcfxqtmyebxsafeea.supabase.co";
 const SUPABASE_KEY="sb_publishable_ur00aFQQv5SvMdGbv2G9Zg_fBpXEUlX";
 let db=null, currentTab="dashboard", productsRows=[], mediaRows=[], ordersRows=[], categoryRows=[], settingsRows=[], sectionRows=[];
-let editingProductId="", recoveryReady=false, recoveryRequested=location.hash.includes("type=recovery") || new URLSearchParams(location.search).has("code");
 
 const tabs=[
 ["dashboard","الرئيسية"],["products","المنتجات"],["orders","الطلبات"],["media","مكتبة الصور"],["sliders","السلايدر"],["feedback","آراء الزبائن"],["categories","الفئات"],
@@ -85,71 +64,32 @@ async function isAdmin(){
  return r.data===true;
 }
 async function login(){
- const msg=$("loginMsg");msg.textContent="جارٍ الدخول…";
- try{await initDb();const r=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});
- if(r.error)throw r.error;if(!await isAdmin()){await db.auth.signOut();throw new Error("هذا الحساب ليس ضمن حسابات الأدمن.");}
- openApp();
- }catch(e){msg.textContent=e.message||"تعذر تسجيل الدخول."}
-}
-function showLogin(){
- $("forgot").classList.add("hide");$("recovery").classList.add("hide");$("app").classList.add("hide");$("login").classList.remove("hide");
-}
-function showForgotPassword(){
- $("login").classList.add("hide");$("recovery").classList.add("hide");$("forgot").classList.remove("hide");
- $("resetEmail").value=$("email").value.trim();$("resetMsg").textContent="";
-}
-async function sendResetEmail(){
- const msg=$("resetMsg"),email=$("resetEmail").value.trim();
- if(!email)return msg.textContent="اكتب البريد الإلكتروني أولًا.";
- msg.textContent="جارٍ إرسال الرابط…";
+ const msg=$("loginMsg"),email=$("email").value.trim();
+ if(!email)return msg.textContent="اكتب بريد حساب الأدمن أولًا.";
+ msg.textContent="جارٍ إرسال رابط الدخول…";
  try{
-   await initDb();
-   const redirectTo=location.origin+location.pathname;
-   const r=await db.auth.resetPasswordForEmail(email,{redirectTo});
-   if(r.error)throw r.error;
-   msg.textContent="تم إرسال رابط الاستعادة إلى بريدك. افتح الرابط من نفس الجهاز لإكمال التغيير.";
- }catch(e){msg.textContent=e.message||"تعذر إرسال رابط الاستعادة."}
+  await initDb();
+  const r=await db.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname,shouldCreateUser:false}});
+  if(r.error)throw r.error;
+  msg.textContent="تم إرسال رابط دخول آمن إلى بريدك. افتحه للمتابعة.";
+ }catch(err){msg.textContent=err.message||"تعذر إرسال رابط الدخول."}
 }
-async function resetPassword(){showForgotPassword()}
-function showRecovery(){
- $("login").classList.add("hide");$("forgot").classList.add("hide");$("app").classList.add("hide");$("recovery").classList.remove("hide");
- $("recoveryMsg").textContent=recoveryReady?"يمكنك الآن اختيار كلمة مرور جديدة.":"جاري التحقق من رابط الاستعادة…";
-}
-function passwordStrength(){
- const p=$("newPass").value,s=$("passStrength");
- if(!p)return s.textContent="";
- if(p.length<6)return s.textContent="كلمة المرور قصيرة.";
- if(p.length<8)return s.textContent="مقبولة، والأفضل استخدام 8 أحرف أو أكثر.";
- s.textContent="كلمة مرور جيدة.";
-}
-async function updatePassword(){
- const p=$("newPass").value,p2=$("newPass2").value,msg=$("recoveryMsg"),btn=$("updatePassBtn");
- if(!recoveryReady)return msg.textContent="انتظر حتى يتم التحقق من رابط الاستعادة.";
- if(p.length<6)return msg.textContent="استخدم 6 أحرف على الأقل.";
- if(p!==p2)return msg.textContent="كلمتا المرور غير متطابقتين.";
- btn.disabled=true;msg.textContent="جارٍ تحديث كلمة المرور…";
- try{
-   const r=await db.auth.updateUser({password:p});
-   if(r.error)throw r.error;
-   const admin=await isAdmin();
-   if(!admin){await db.auth.signOut();throw new Error("تم تغيير كلمة المرور، لكن هذا الحساب ليس ضمن حسابات الأدمن.");}
-   history.replaceState({},document.title,location.pathname+location.search);
-   msg.textContent="تم تغيير كلمة المرور بنجاح. جاري فتح لوحة الأدمن…";
-   setTimeout(openApp,500);
- }catch(e){msg.textContent=e.message||"تعذر تغيير كلمة المرور."}
- finally{btn.disabled=false}
-}
+function showLogin(){$("app").classList.add("hide");$("login").classList.remove("hide");$("loginMsg").textContent="";}
 async function logout(){await db.auth.signOut();location.reload()}
-async function openApp(){$("login").classList.add("hide");$("forgot").classList.add("hide");$("recovery").classList.add("hide");$("app").classList.remove("hide");renderNav();show("dashboard")}
+async function openApp(){$("login").classList.add("hide");$("app").classList.remove("hide");renderNav();show("dashboard")}
 async function boot(){
  try{
-   await initDb();
-   db.auth.onAuthStateChange((event)=>{
-     if(event==="PASSWORD_RECOVERY"){recoveryReady=true;showRecovery();}
-   });
-   if(recoveryRequested){showRecovery();return}
-   if(await isAdmin())openApp();
- }catch(e){console.warn(e)}
+  await initDb();
+  db.auth.onAuthStateChange(async(event)=>{
+   if(event==="SIGNED_IN"){
+    try{
+     if(await isAdmin())openApp();
+     else{await db.auth.signOut();showLogin();$("loginMsg").textContent="هذا الحساب ليس ضمن حسابات الأدمن.";}
+    }catch(err){console.warn(err);}
+   }
+  });
+  if(await isAdmin())openApp();
+ }catch(err){console.warn(err);}
 }
 function renderNav(){
  const h=tabs.map(t=>'<button class="'+(currentTab===t[0]?"active":"")+'" onclick="show(\''+t[0]+'\')">'+t[1]+"</button>").join("");
