@@ -276,7 +276,7 @@ function addMediaUrl(url){const ta=$("pimgs");if(ta){const vals=ta.value.split(/
 
 async function sliders(){
  const r=await db.from("sliders").select("*").order("sort_order").order("created_at",{ascending:false});
- const a=r.data||[];
+ const a=r.data||[];window.sliderRows=a;
  $("content").innerHTML='<div class="tablewrap"><table class="table"><thead><tr><th>الصورة</th><th>العنوان</th><th>النص</th><th>الرابط</th><th>الحالة</th><th>الترتيب</th><th></th></tr></thead><tbody>'+
  a.map(x=>'<tr><td><img class="thumb" src="'+esc(x.image_url)+'"></td><td>'+esc(x.title||"")+'</td><td>'+esc(x.subtitle||"")+'</td><td>'+esc(x.link_url||"")+'</td><td>'+(x.active?'<span class="badge on">ظاهر</span>':'<span class="badge off">مخفي</span>')+'</td><td>'+x.sort_order+'</td><td><div class="rowBtns"><button class="btn ghost" onclick="sliderForm(\''+x.id+'\')">تعديل</button><button class="btn danger" onclick="toggleSlider(\''+x.id+'\')">'+(x.active?"إخفاء":"إظهار")+'</button></div></td></tr>').join("")+
  '</tbody></table></div>';
