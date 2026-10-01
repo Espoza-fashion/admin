@@ -78,9 +78,11 @@ async function initDb(){
  return db;
 }
 async function isAdmin(){
- const s=await db.auth.getSession(); if(!s.data.session)return false;
- const r=await db.from("admin_users").select("user_id").eq("user_id",s.data.session.user.id).maybeSingle();
- return !!r.data;
+ const s=await db.auth.getSession();
+ if(!s.data.session)return false;
+ const r=await db.rpc("is_current_user_admin");
+ if(r.error)throw r.error;
+ return r.data===true;
 }
 async function login(){
  const msg=$("loginMsg");msg.textContent="جارٍ الدخول…";
